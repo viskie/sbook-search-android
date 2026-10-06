@@ -68,3 +68,6 @@ tmp/
 
 
 
+
+# Android/local build artifacts
+**/.idea/
