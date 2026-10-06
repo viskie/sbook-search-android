@@ -24,6 +24,7 @@ public class LibraryActivity
     private TextView title;
 
     private Button newCategory;
+    private Button reindexLibrary;
 
     private boolean insideCategory =
             false;
@@ -60,9 +61,19 @@ public class LibraryActivity
                         R.id.newCategory
                 );
 
+        reindexLibrary =
+                findViewById(
+                        R.id.reindexLibrary
+                );
+
         newCategory
                 .setOnClickListener(
                         v -> createCategory()
+                );
+
+        reindexLibrary
+                .setOnClickListener(
+                        v -> confirmReindex()
                 );
 
         showCategories();
@@ -225,6 +236,67 @@ public class LibraryActivity
 
         startActivity(intent);
     }
+
+    private void confirmReindex() {
+
+        new AlertDialog.Builder(this)
+
+                .setTitle(
+                        "Reindex library?"
+                )
+
+                .setMessage(
+                        "This rebuilds the search index from the " +
+                        "already downloaded files.\n\n" +
+                        "The library files and bookmarks will not " +
+                        "be deleted or downloaded again."
+                )
+
+                .setPositiveButton(
+                        "Reindex",
+
+                        (dialog, which) ->
+                                startReindex()
+                )
+
+                .setNegativeButton(
+                        "Cancel",
+                        null
+                )
+
+                .show();
+    }
+
+
+    private void startReindex() {
+
+        Intent intent =
+                new Intent(
+                        this,
+                        LibraryService.class
+                );
+
+        intent.setAction(
+                LibraryService.ACTION_REINDEX
+        );
+
+        if (android.os.Build.VERSION.SDK_INT >=
+                android.os.Build.VERSION_CODES.O) {
+
+            startForegroundService(intent);
+
+        } else {
+
+            startService(intent);
+        }
+
+        Toast.makeText(
+                this,
+                "Reindex started",
+                Toast.LENGTH_LONG
+        ).show();
+    }
+
 
     private void createCategory() {
 

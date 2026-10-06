@@ -57,7 +57,7 @@ final class IndexDatabase extends SQLiteOpenHelper {
 
         ContentValues filename = new ContentValues();
         filename.put("docid", id);
-        filename.put("name", name);
+        filename.put("name", explodeFilenameForSearch(name));
         db.insertOrThrow("filename_fts", null, filename);
 
         if (body != null && !body.isBlank()) {
@@ -112,6 +112,15 @@ final class IndexDatabase extends SQLiteOpenHelper {
         try (Cursor cursor = getReadableDatabase().rawQuery("SELECT count(*) FROM documents", null)) {
             return cursor.moveToFirst() ? cursor.getInt(0) : 0;
         }
+    }
+
+    private static String explodeFilenameForSearch(String name) {
+        if (name == null) return "";
+
+        return name
+                .replaceAll("[^\\p{L}\\p{M}\\p{N}]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
     }
 
     private static String toMatchQuery(String raw) {

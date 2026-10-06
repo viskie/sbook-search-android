@@ -39,6 +39,7 @@ import java.util.concurrent.Executors;
 
 public final class LibraryService extends Service {
     static final String ACTION_START = "org.sbook.search.START";
+    static final String ACTION_REINDEX = "org.sbook.search.REINDEX";
     static final String PREFS = "library";
     static final String PREF_READY = "ready";
     static final String PREF_COUNT = "count";
@@ -109,10 +110,21 @@ public final class LibraryService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_START.equals(intent.getAction()) && !running) {
-            running = true;
-            startForeground(NOTIFICATION_ID, notification("Preparing library", 0, true));
-            worker.execute(this::installLibrary);
+        if (intent != null && !running) {
+            if (ACTION_START.equals(intent.getAction())) {
+                running = true;
+                startForeground(
+                        NOTIFICATION_ID,
+                        notification("Preparing library", 0, true));
+                worker.execute(this::installLibrary);
+
+            } else if (ACTION_REINDEX.equals(intent.getAction())) {
+                running = true;
+                startForeground(
+                        NOTIFICATION_ID,
+                        notification("Reindexing existing library", 0, true));
+                worker.execute(this::reindexExistingLibrary);
+            }
         }
         return START_NOT_STICKY;
     }
@@ -179,6 +191,230 @@ public final class LibraryService extends Service {
         } finally {
             running = false;
             index.close();
+        }
+    }
+
+    private void reindexExistingLibrary() {
+        IndexDatabase index = new IndexDatabase(this);
+
+        try {
+            File root = new File(getFilesDir(), "library");
+
+            if (!root.isDirectory()) {
+                throw new IOException(
+                        "Downloaded library not found.");
+            }
+
+            publish(
+                    "Reindexing",
+                    "Scanning existing library…",
+                    0,
+                    0,
+                    true,
+                    false,
+                    null,
+                    true);
+
+            SQLiteDatabase db =
+                    index.getWritableDatabase();
+
+            /*
+             * Search DB only.
+             *
+             * Does NOT delete files/library.
+             * Does NOT touch bookmark database.
+             * Does NOT download anything.
+             */
+            index.reset(db);
+
+            int[] count = {0};
+
+            db.beginTransaction();
+
+            try {
+                reindexDirectory(
+                        root,
+                        root,
+                        index,
+                        db,
+                        count);
+
+                db.setTransactionSuccessful();
+
+            } finally {
+                db.endTransaction();
+            }
+
+            getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putBoolean(PREF_READY, true)
+                    .putInt(PREF_COUNT, count[0])
+                    .apply();
+
+            publish(
+                    "Ready",
+                    formatCount(count[0]) +
+                            " files reindexed",
+                    100,
+                    count[0],
+                    false,
+                    true,
+                    null,
+                    true);
+
+            updateNotification(
+                    "Reindex complete — " +
+                            formatCount(count[0]) +
+                            " files",
+                    100,
+                    false);
+
+            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopSelf();
+
+        } catch (Exception exception) {
+
+            String message = exception.getMessage();
+
+            if (message == null ||
+                    message.isBlank()) {
+                message =
+                        exception
+                                .getClass()
+                                .getSimpleName();
+            }
+
+            publish(
+                    "Reindex failed",
+                    message,
+                    0,
+                    snapshot.files,
+                    false,
+                    false,
+                    message,
+                    true);
+
+            updateNotification(
+                    "Reindex failed: " + message,
+                    0,
+                    false);
+
+            stopForeground(STOP_FOREGROUND_DETACH);
+            stopSelf();
+
+        } finally {
+            running = false;
+            index.close();
+        }
+    }
+
+
+    private void reindexDirectory(
+            File root,
+            File directory,
+            IndexDatabase index,
+            SQLiteDatabase db,
+            int[] count)
+            throws IOException {
+
+        File[] files = directory.listFiles();
+
+        if (files == null)
+            return;
+
+        for (File file : files) {
+
+            if (file.isDirectory()) {
+
+                reindexDirectory(
+                        root,
+                        file,
+                        index,
+                        db,
+                        count);
+
+                continue;
+            }
+
+            if (!file.isFile())
+                continue;
+
+            String relative =
+                    root.toPath()
+                            .relativize(file.toPath())
+                            .toString()
+                            .replace(
+                                    File.separatorChar,
+                                    '/');
+
+            String body = null;
+
+            /*
+             * Same content-indexing rule as original
+             * extraction/indexing routine.
+             */
+            if (isTextFile(file.getName()) &&
+                    file.length() <= MAX_INDEXED_FILE) {
+
+                try (FileInputStream input =
+                             new FileInputStream(file);
+
+                     ByteArrayOutputStream text =
+                             new ByteArrayOutputStream(
+                                     (int) Math.min(
+                                             file.length(),
+                                             256 * 1024L))) {
+
+                    byte[] buffer =
+                            new byte[64 * 1024];
+
+                    int read;
+
+                    while ((read =
+                            input.read(buffer)) != -1) {
+
+                        text.write(
+                                buffer,
+                                0,
+                                read);
+                    }
+
+                    body =
+                            new String(
+                                    text.toByteArray(),
+                                    StandardCharsets.UTF_8);
+                }
+            }
+
+            /*
+             * logicalName stays ORIGINAL.
+             *
+             * IndexDatabase.insert() stores that original
+             * name in documents, while only filename_fts
+             * receives the exploded representation.
+             */
+            index.insert(
+                    db,
+                    relative,
+                    logicalName(file.getName()),
+                    body);
+
+            count[0]++;
+
+            if ((count[0] % 100) == 0) {
+
+                publish(
+                        "Reindexing",
+                        formatCount(count[0]) +
+                                " files • " +
+                                file.getName(),
+                        0,
+                        count[0],
+                        true,
+                        false,
+                        null,
+                        false);
+            }
         }
     }
 

@@ -32,6 +32,14 @@
 
         android:text="+ New Category" />
 
+    <Button
+        android:id="@+id/reindexLibrary"
+
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+
+        android:text="⟳ Reindex Library" />
+
     <ListView
         android:id="@+id/libraryList"
 
