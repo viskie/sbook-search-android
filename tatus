@@ -1,0 +1,29 @@
+[1mdiff --git a/app/src/main/java/org/sbook/search/IndexDatabase.java b/app/src/main/java/org/sbook/search/IndexDatabase.java[m
+[1mindex 9e45627..13aaf05 100644[m
+[1m--- a/app/src/main/java/org/sbook/search/IndexDatabase.java[m
+[1m+++ b/app/src/main/java/org/sbook/search/IndexDatabase.java[m
+[36m@@ -57,7 +57,7 @@[m [mfinal class IndexDatabase extends SQLiteOpenHelper {[m
+ [m
+         ContentValues filename = new ContentValues();[m
+         filename.put("docid", id);[m
+[31m-        filename.put("name", name);[m
+[32m+[m[32m        filename.put("name", explodeFilenameForSearch(name));[m
+         db.insertOrThrow("filename_fts", null, filename);[m
+ [m
+         if (body != null && !body.isBlank()) {[m
+[36m@@ -114,6 +114,15 @@[m [mfinal class IndexDatabase extends SQLiteOpenHelper {[m
+         }[m
+     }[m
+ [m
+[32m+[m[32m    private static String explodeFilenameForSearch(String name) {[m
+[32m+[m[32m        if (name == null) return "";[m
+[32m+[m
+[32m+[m[32m        return name[m
+[32m+[m[32m                .replaceAll("[^\\p{L}\\p{M}\\p{N}]+", " ")[m
+[32m+[m[32m                .trim()[m
+[32m+[m[32m                .replaceAll("\\s+", " ");[m
+[32m+[m[32m    }[m
+[32m+[m
+     private static String toMatchQuery(String raw) {[m
+         String normalized = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);[m
+         Matcher matcher = TOKEN.matcher(normalized);[m
