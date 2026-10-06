@@ -70,64 +70,52 @@ final class IndexDatabase extends SQLiteOpenHelper {
     }
 
     List<SearchResult> search(boolean contents, String rawQuery, int limit) {
-        SQLiteDatabase db = getReadableDatabase();
         String query = toMatchQuery(rawQuery);
-        if (query.isEmpty()) {
-            return browse(db, limit);
-        }
-
-        String sql;
-        if (contents) {
-            sql = "SELECT d.path,d.name,snippet(content_fts,'','', ' … ', -1, 24) " +
-                    "FROM content_fts JOIN documents d ON d.id=content_fts.docid " +
-                    "WHERE content_fts MATCH ? ORDER BY d.name COLLATE NOCASE LIMIT ?";
-        } else {
-            /*
-         * SBOOK_SUBSTRING_FILENAME_SEARCH
-         *
-         * Filename mode intentionally uses
-         * substring matching.
-         *
-         * Examples:
-         *
-         * ash  -> ashtadhyayi
-         * ashta -> ashtadhyayi
-         * dhya -> ashtadhyayi
-         *
-         * Document-text search remains FTS.
-         */
-        sql = "SELECT path,name,'' FROM documents " +
-              "WHERE name LIKE ? COLLATE NOCASE " +
-              "ORDER BY name COLLATE NOCASE LIMIT ?";
-        }
 
         List<SearchResult> results = new ArrayList<>();
+
+        if (rawQuery == null || rawQuery.trim().isEmpty()) {
+            return results;
+        }
+
+        SQLiteDatabase db = getReadableDatabase();
+
+        String sql;
         String sqlArgument;
 
         if (contents) {
+            if (query.isEmpty()) {
+                return results;
+            }
 
-            /*
-             * Keep existing FTS expression for
-             * Document Text mode.
-             */
+            sql =
+                    "SELECT d.path,d.name," +
+                    "snippet(content_fts,0,'','',' … ',12) " +
+                    "FROM content_fts " +
+                    "JOIN documents d ON d.id=content_fts.docid " +
+                    "WHERE content_fts MATCH ? " +
+                    "ORDER BY rank LIMIT ?";
+
             sqlArgument = query;
 
         } else {
+            // SBOOK_SUBSTRING_FILENAME_SEARCH
+            //
+            // Search the existing filename stored in documents.
+            // No reindex is required.
+            //
+            // ash   -> ashtadhyayi
+            // ashta -> ashtadhyayi
+            // dhya  -> ashtadhyayi
 
-            /*
-             * Filename mode:
-             *
-             * ash becomes %ash%
-             */
-            String filenameQuery =
-                    rawQuery == null
-                            ? ""
-                            : rawQuery.trim();
+            sql =
+                    "SELECT path,name,'' FROM documents " +
+                    "WHERE name LIKE ? COLLATE NOCASE " +
+                    "ORDER BY name COLLATE NOCASE LIMIT ?";
 
-            sqlArgument =
-                    "%"
-                    + filenameQuery
-                    + "%";
+            String filenameQuery = rawQuery.trim();
+
+            sqlArgument = "%" + filenameQuery + "%";
         }
 
         try (Cursor cursor = db.rawQuery(
@@ -136,10 +124,16 @@ final class IndexDatabase extends SQLiteOpenHelper {
                         sqlArgument,
                         Integer.toString(limit)
                 })) {
+
             while (cursor.moveToNext()) {
-                results.add(new SearchResult(cursor.getString(0), cursor.getString(1), cursor.getString(2)));
+                results.add(new SearchResult(
+                        cursor.getString(0),
+                        cursor.getString(1),
+                        cursor.getString(2)
+                ));
             }
         }
+
         return results;
     }
 
