@@ -71,3 +71,5 @@ tmp/
 
 # Android/local build artifacts
 **/.idea/
+
+# Android local/generated files
