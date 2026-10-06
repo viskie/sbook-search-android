@@ -82,60 +82,13 @@ final class IndexDatabase extends SQLiteOpenHelper {
                     "FROM content_fts JOIN documents d ON d.id=content_fts.docid " +
                     "WHERE content_fts MATCH ? ORDER BY d.name COLLATE NOCASE LIMIT ?";
         } else {
-            /*
-         * SBOOK_SUBSTRING_FILENAME_SEARCH
-         *
-         * Filename mode intentionally uses
-         * substring matching.
-         *
-         * Examples:
-         *
-         * ash  -> ashtadhyayi
-         * ashta -> ashtadhyayi
-         * dhya -> ashtadhyayi
-         *
-         * Document-text search remains FTS.
-         */
-        sql = "SELECT path,name,'' FROM documents " +
-              "WHERE name LIKE ? COLLATE NOCASE " +
-              "ORDER BY name COLLATE NOCASE LIMIT ?";
+            sql = "SELECT d.path,d.name,'' FROM filename_fts " +
+                    "JOIN documents d ON d.id=filename_fts.docid " +
+                    "WHERE filename_fts MATCH ? ORDER BY d.name COLLATE NOCASE LIMIT ?";
         }
 
         List<SearchResult> results = new ArrayList<>();
-        String sqlArgument;
-
-        if (contents) {
-
-            /*
-             * Keep existing FTS expression for
-             * Document Text mode.
-             */
-            sqlArgument = query;
-
-        } else {
-
-            /*
-             * Filename mode:
-             *
-             * ash becomes %ash%
-             */
-            String filenameQuery =
-                    rawQuery == null
-                            ? ""
-                            : rawQuery.trim();
-
-            sqlArgument =
-                    "%"
-                    + filenameQuery
-                    + "%";
-        }
-
-        try (Cursor cursor = db.rawQuery(
-                sql,
-                new String[]{
-                        sqlArgument,
-                        Integer.toString(limit)
-                })) {
+        try (Cursor cursor = db.rawQuery(sql, new String[]{query, Integer.toString(limit)})) {
             while (cursor.moveToNext()) {
                 results.add(new SearchResult(cursor.getString(0), cursor.getString(1), cursor.getString(2)));
             }

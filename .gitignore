@@ -6,3 +6,65 @@ local.properties
 
 
 .filename-reindex-backup/
+
+# ===== local/generated files =====
+**/.gradle/
+
+build/
+
+.cxx/
+**/.cxx/
+
+.externalNativeBuild/
+**/.externalNativeBuild/
+
+
+
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+captures/
+
+.DS_Store
+Thumbs.db
+
+*.log
+*.tmp
+*.temp
+*.cache
+
+__pycache__/
+*.pyc
+
+# Android generated output
+generated/
+**/generated/
+
+intermediates/
+**/intermediates/
+
+outputs/
+**/outputs/
+
+tmp/
+**/tmp/
+
+# ===== local/generated files =====
+
+
+
+
+
+
+
+
+
+
+
+# Android generated output
+
+
+
